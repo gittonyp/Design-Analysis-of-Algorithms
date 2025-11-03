@@ -1,9 +1,8 @@
 #include <iostream>
 #include <vector>
-#include <queue>      // For priority_queue
-#include <limits>     // For INT_MAX
-#include <algorithm>  // For fill, find
-#include <numeric>    // For iota
+#include <queue>
+#include <limits>
+#include <algorithm>
 
 using namespace std;
 
@@ -32,74 +31,69 @@ struct CompareNode {
 int reduce_matrix(vector<vector<int>>& mat) {
     int reduction = 0;
 
-    // 1. Row Reduction
+    // Row reduction
     for (int i = 0; i < N; ++i) {
         int min_val = INF;
         for (int j = 0; j < N; ++j) {
-            if (mat[i][j] < min_val) {
+            if (mat[i][j] < min_val)
                 min_val = mat[i][j];
-            }
         }
-        
+
         if (min_val != 0 && min_val != INF) {
             for (int j = 0; j < N; ++j) {
-                if (mat[i][j] != INF) {
+                if (mat[i][j] != INF)
                     mat[i][j] -= min_val;
-                }
             }
             reduction += min_val;
         }
     }
 
-    // 2. Column Reduction
+    // Column reduction
     for (int j = 0; j < N; ++j) {
         int min_val = INF;
         for (int i = 0; i < N; ++i) {
-            if (mat[i][j] < min_val) {
+            if (mat[i][j] < min_val)
                 min_val = mat[i][j];
-            }
         }
-        
+
         if (min_val != 0 && min_val != INF) {
             for (int i = 0; i < N; ++i) {
-                if (mat[i][j] != INF) {
+                if (mat[i][j] != INF)
                     mat[i][j] -= min_val;
-                }
             }
             reduction += min_val;
         }
     }
-    
+
     return reduction;
 }
 
 // Helper function to check if a city is already in the path
 bool isVisited(const vector<int>& path, int city) {
-    for (int p : path) {
-        if (p == city) return true;
-    }
-    return false;
+    return find(path.begin(), path.end(), city) != path.end();
 }
 
 int main() {
     cout << "Enter the number of cities (N): ";
     cin >> N;
-    
+
     vector<vector<int>> start_mat(N, vector<int>(N));
     cout << "Enter the cost matrix (use -1 or a large number for INF):\n";
     for (int i = 0; i < N; ++i) {
         for (int j = 0; j < N; ++j) {
             cin >> start_mat[i][j];
-            if (start_mat[i][j] == -1) {
+            if (start_mat[i][j] == -1)
                 start_mat[i][j] = INF;
-            }
         }
     }
+
+    // Keep original matrix for true costs
+    vector<vector<int>> original = start_mat;
 
     // Priority queue to store live nodes (best-first)
     priority_queue<Node, vector<Node>, CompareNode> pq;
 
-    // --- Create the Root Node ---
+    // Create the Root Node
     Node root;
     root.mat = start_mat;
     root.path.push_back(0); // Start at city 0
@@ -107,48 +101,37 @@ int main() {
     root.level = 0;
     root.curr_city = 0;
     root.lb = reduce_matrix(root.mat); // Initial lower bound
-    
+
     pq.push(root);
 
     int bestCost = INF;
     vector<int> bestPath;
 
-    // --- Main LC Branch & Bound Loop ---
+    // Main LC Branch & Bound Loop
     while (!pq.empty()) {
         Node node = pq.top();
         pq.pop();
 
-        // --- Pruning Step ---
-        // If this node's LB is already worse than our best, prune it.
-        if (node.lb >= bestCost) {
+        // Prune if bound >= bestCost
+        if (node.lb >= bestCost)
             continue;
-        }
 
-        // --- Goal Check ---
-        // If we have visited N cities (level N-1)
+        // Goal check: visited all cities
         if (node.level == N - 1) {
-            // This is a complete tour.
-            // Add cost of returning to start city.
-            if (node.mat[node.curr_city][0] != INF) {
-                int final_cost = node.cost + node.mat[node.curr_city][0];
-            
+            if (original[node.curr_city][0] != INF) {
+                int final_cost = node.cost + original[node.curr_city][0];
                 if (final_cost < bestCost) {
                     bestCost = final_cost;
                     bestPath = node.path;
-                    bestPath.push_back(0); // Add return to start
+                    bestPath.push_back(0);
                 }
             }
-            // Since this is a leaf, we don't branch further.
-            continue; 
+            continue;
         }
 
-        // --- Branching Step ---
-        // For each possible next city 'v'
+        // Branching
         for (int v = 0; v < N; ++v) {
-            // Check if city 'v' is not visited and there is a path
             if (!isVisited(node.path, v) && node.mat[node.curr_city][v] != INF) {
-                
-                // Create the child node for path u -> v
                 Node child;
                 child.mat = node.mat;
                 child.path = node.path;
@@ -156,37 +139,27 @@ int main() {
                 child.level = node.level + 1;
                 child.curr_city = v;
 
-                int u = node.curr_city; // Parent city
+                int u = node.curr_city;
+                // FIXED: use original cost matrix for actual travel cost
+                child.cost = node.cost + original[u][v];
 
-                // Cost of path so far
-                child.cost = node.cost + node.mat[u][v];
+                // Set row u, col v, and v->0 to INF
+                for (int j = 0; j < N; ++j)
+                    child.mat[u][j] = INF;
+                for (int i = 0; i < N; ++i)
+                    child.mat[i][v] = INF;
+                child.mat[v][0] = INF;
 
-                // --- Prepare Child's Reduced Matrix ---
-                // Set row 'u', col 'v', and 'v->start' to INF
-                for (int j = 0; j < N; ++j) {
-                    child.mat[u][j] = INF; // Set row u to INF
-                }
-                for (int i = 0; i < N; ++i) {
-                    child.mat[i][v] = INF; // Set col v to INF
-                }
-                child.mat[v][0] = INF; // Set v -> start_city to INF
-
-                // Get new reduction cost
                 int reduction = reduce_matrix(child.mat);
-                
-                // --- Calculate Child's Lower Bound ---
-                // Cost so far + LB of remaining problem
                 child.lb = child.cost + reduction;
 
-                // --- Push Child if Promising ---
-                if (child.lb < bestCost) {
+                if (child.lb < bestCost)
                     pq.push(child);
-                }
             }
         }
     }
 
-    // --- Final Output ---
+    // Final Output
     if (bestCost == INF) {
         cout << "No feasible tour found." << endl;
     } else {
@@ -194,7 +167,8 @@ int main() {
         cout << "Optimal Path: ";
         for (size_t i = 0; i < bestPath.size(); ++i) {
             cout << bestPath[i];
-            if (i < bestPath.size() - 1) cout << " -> ";
+            if (i < bestPath.size() - 1)
+                cout << " -> ";
         }
         cout << endl;
     }
